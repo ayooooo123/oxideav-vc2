@@ -150,9 +150,15 @@ fn probe_vc2_stream(ctx: &ProbeContext) -> Confidence {
 pub struct Vc2Decoder {
     codec_id: CodecId,
     walker: SequenceDecoder,
-    pending: VecDeque<Frame>,
+    /// Decoded frames not yet returned, each with its [`Layout`].
+    pending: VecDeque<(Frame, Layout)>,
+    /// The [`Layout`] of the frame `receive_frame` last returned.
+    last_output: Option<Layout>,
     flushed: bool,
 }
+
+/// The luma size and core pixel format of a decoded frame.
+type Layout = ((u32, u32), Option<PixelFormat>);
 
 impl Vc2Decoder {
     /// Build a decoder. If `params.extradata` starts with a parse-info
@@ -171,6 +177,7 @@ impl Vc2Decoder {
             codec_id: params.codec_id.clone(),
             walker,
             pending: VecDeque::new(),
+            last_output: None,
             flushed: false,
         })
     }
@@ -186,6 +193,12 @@ impl Vc2Decoder {
     /// [`crate::mxf`]).
     pub fn sequence_header(&self) -> Option<&crate::params::SequenceHeader> {
         self.walker.sequence_header()
+    }
+
+    /// The frame last returned; before the first, the next queued one.
+    fn reported_layout(&self) -> Option<Layout> {
+        self.last_output
+            .or_else(|| self.pending.front().map(|(_, layout)| *layout))
     }
 }
 
@@ -363,6 +376,18 @@ fn pack_plane_words(samples: &[u16], width: usize, shift: u32) -> VideoPlane {
     }
 }
 
+/// The [`Layout`] of the frame [`to_frame`] makes from `pic`. The format is
+/// `None` when an odd luma size halves to chroma planes rounded down
+/// (§11.6.2), where the core layout rounds up.
+fn picture_layout(pic: &DecodedPicture) -> oxideav_core::Result<Layout> {
+    let format = surface_mapping(pic)?.format;
+    // Sequence-header picture sizes are 32-bit (§11.4.3).
+    let size = (pic.luma_width as u32, pic.luma_height as u32);
+    let chroma = (pic.color_diff_width as u32, pic.color_diff_height as u32);
+    let exact = format.plane_dimensions(1, size.0, size.1) == Some(chroma);
+    Ok((size, exact.then_some(format)))
+}
+
 /// Convert a decoded picture into a core video frame.
 fn to_frame(pic: &DecodedPicture, pts: Option<i64>) -> oxideav_core::Result<Frame> {
     // The mapping is validated (and its promotion shifts applied) even
@@ -415,17 +440,34 @@ impl Decoder for Vc2Decoder {
         }
         let pictures = self.walker.push(&packet.data).map_err(map_err)?;
         for pic in &pictures {
-            self.pending.push_back(to_frame(pic, packet.pts)?);
+            let layout = picture_layout(pic)?;
+            self.pending.push_back((to_frame(pic, packet.pts)?, layout));
         }
         Ok(())
     }
 
     fn receive_frame(&mut self) -> oxideav_core::Result<Frame> {
         match self.pending.pop_front() {
-            Some(f) => Ok(f),
+            Some((f, layout)) => {
+                self.last_output = Some(layout);
+                Ok(f)
+            }
             None if self.flushed => Err(oxideav_core::Error::Eof),
             None => Err(oxideav_core::Error::NeedMore),
         }
+    }
+
+    /// The frame last returned; before the first, the next decoded one.
+    fn output_video_dimensions(&self) -> Option<(u32, u32)> {
+        self.reported_layout()
+            .map(|(size, _)| size)
+            .filter(|&(w, h)| w > 0 && h > 0)
+    }
+
+    /// `None` for a frame whose chroma planes match no core layout (see
+    /// [`picture_layout`]).
+    fn output_pixel_format(&self) -> Option<PixelFormat> {
+        self.reported_layout().and_then(|(_, format)| format)
     }
 
     fn flush(&mut self) -> oxideav_core::Result<()> {
@@ -445,6 +487,7 @@ impl Decoder for Vc2Decoder {
     fn reset(&mut self) -> oxideav_core::Result<()> {
         self.walker.reset();
         self.pending.clear();
+        self.last_output = None;
         self.flushed = false;
         Ok(())
     }

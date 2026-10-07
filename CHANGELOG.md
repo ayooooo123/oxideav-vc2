@@ -5,6 +5,14 @@ on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `Decoder::output_video_dimensions` / `output_pixel_format`: the size and
+  format of the frame `receive_frame` last returned; before the first,
+  the next queued one. The format is `None` when §11.6.2 halves an odd
+  subsampled size rounding down, so the chroma planes match no
+  `PixelFormat`.
+
 ## [0.0.2](https://github.com/OxideAV/oxideav-vc2/compare/v0.0.1...v0.0.2) - 2026-08-30
 
 ### Other
