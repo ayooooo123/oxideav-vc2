@@ -24,8 +24,8 @@
 //! require one of the byte-target modes.
 
 use oxideav_core::{
-    parse_options, CodecParameters, Encoder, Frame, OptionField, OptionKind, OptionValue, Packet,
-    PixelFormat,
+    CodecParameters, Encoder, Frame, OptionField, OptionKind, OptionValue, Packet, PixelFormat,
+    parse_options,
 };
 
 use crate::encoder::{EncoderConfig, PictureInput, RateControl, SequenceEncoder};
@@ -36,6 +36,7 @@ use crate::transform::PictureKind;
 ///
 /// [`CodecOptionsStruct`]: oxideav_core::CodecOptionsStruct
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Vc2EncoderOptions {
     /// `"hq"` (high quality, profile 3) or `"ld"` (low delay, profile 0).
     pub profile: String,
@@ -65,6 +66,99 @@ pub struct Vc2EncoderOptions {
     /// Emit each frame as a complete sequence (header … end-of-sequence)
     /// rather than one long sequence closed at flush.
     pub sequence_per_packet: bool,
+}
+
+impl Vc2EncoderOptions {
+    /// Set `profile`.
+    #[must_use]
+    pub fn with_profile(mut self, profile: String) -> Self {
+        self.profile = profile;
+        self
+    }
+
+    /// Set `wavelet`.
+    #[must_use]
+    pub fn with_wavelet(mut self, wavelet: u32) -> Self {
+        self.wavelet = wavelet;
+        self
+    }
+
+    /// Set `depth`.
+    #[must_use]
+    pub fn with_depth(mut self, depth: u32) -> Self {
+        self.depth = depth;
+        self
+    }
+
+    /// Set `wavelet_ho`.
+    #[must_use]
+    pub fn with_wavelet_ho(mut self, wavelet_ho: i32) -> Self {
+        self.wavelet_ho = wavelet_ho;
+        self
+    }
+
+    /// Set `depth_ho`.
+    #[must_use]
+    pub fn with_depth_ho(mut self, depth_ho: u32) -> Self {
+        self.depth_ho = depth_ho;
+        self
+    }
+
+    /// Set `slices_x`.
+    #[must_use]
+    pub fn with_slices_x(mut self, slices_x: u32) -> Self {
+        self.slices_x = slices_x;
+        self
+    }
+
+    /// Set `slices_y`.
+    #[must_use]
+    pub fn with_slices_y(mut self, slices_y: u32) -> Self {
+        self.slices_y = slices_y;
+        self
+    }
+
+    /// Set `qindex`.
+    #[must_use]
+    pub fn with_qindex(mut self, qindex: i32) -> Self {
+        self.qindex = qindex;
+        self
+    }
+
+    /// Set `picture_bytes`.
+    #[must_use]
+    pub fn with_picture_bytes(mut self, picture_bytes: u32) -> Self {
+        self.picture_bytes = picture_bytes;
+        self
+    }
+
+    /// Set `fragment_slices`.
+    #[must_use]
+    pub fn with_fragment_slices(mut self, fragment_slices: u32) -> Self {
+        self.fragment_slices = fragment_slices;
+        self
+    }
+
+    /// Set `level`.
+    #[must_use]
+    pub fn with_level(mut self, level: u32) -> Self {
+        self.level = level;
+        self
+    }
+
+    /// Set `slice_prefix_bytes`.
+    #[must_use]
+    pub fn with_slice_prefix_bytes(mut self, slice_prefix_bytes: u32) -> Self {
+        self.slice_prefix_bytes = slice_prefix_bytes;
+        self
+    }
+
+    /// Set `sequence_per_packet`.
+    #[must_use]
+    pub fn with_sequence_per_packet(mut self, sequence_per_packet: bool) -> Self {
+        self.sequence_per_packet = sequence_per_packet;
+        self
+    }
 }
 
 impl Default for Vc2EncoderOptions {
@@ -244,7 +338,7 @@ impl Vc2Encoder {
             _ => {
                 return Err(oxideav_core::Error::invalid(
                     "vc2: encoder requires width and height",
-                ))
+                ));
             }
         };
         let pf = params
@@ -277,11 +371,12 @@ impl Vc2Encoder {
         if opts.fragment_slices > 0 {
             cfg.fragment_slices = Some(opts.fragment_slices.min(u16::MAX as u32) as u16);
         }
-        if let Some(fr) = params.frame_rate {
-            if fr.num > 0 && fr.den > 0 {
-                cfg.video_parameters.frame_rate_numer = fr.num as u64;
-                cfg.video_parameters.frame_rate_denom = fr.den as u64;
-            }
+        if let Some(fr) = params.frame_rate
+            && fr.num > 0
+            && fr.den > 0
+        {
+            cfg.video_parameters.frame_rate_numer = fr.num as u64;
+            cfg.video_parameters.frame_rate_denom = fr.den as u64;
         }
         cfg.rate = if opts.qindex >= 0 {
             RateControl::FixedQuantIndex(opts.qindex as u64)
@@ -340,7 +435,7 @@ impl Vc2Encoder {
         for y in 0..h {
             let src = &plane.data[y * plane.stride..y * plane.stride + row];
             if self.words {
-                for pair in src.chunks_exact(2) {
+                for pair in src.as_chunks::<2>().0 {
                     out.push(u16::from_le_bytes([pair[0], pair[1]]) & mask);
                 }
             } else {

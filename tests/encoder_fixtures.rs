@@ -41,7 +41,7 @@
 //!   and the §14 unit framing, both round-trip-tested).
 
 use oxideav_vc2::params::ColorDiffFormat;
-use oxideav_vc2::{encode_sequence, EncoderConfig, PictureInput, PictureKind, RateControl};
+use oxideav_vc2::{EncoderConfig, PictureInput, PictureKind, RateControl, encode_sequence};
 
 /// The deterministic test picture every fixture was encoded from
 /// (gradient + LCG noise, seed 42) — byte-identical to the generator
@@ -174,15 +174,7 @@ fn pinned_streams_regenerate_byte_exactly() {
             case.f,
             case.depth,
         ));
-        let stream = encode_sequence(
-            cfg,
-            &[PictureInput {
-                y: &y,
-                c1: &c1,
-                c2: &c2,
-            }],
-        )
-        .expect(case.name);
+        let stream = encode_sequence(cfg, &[PictureInput::new(&y, &c1, &c2)]).expect(case.name);
         assert_eq!(
             stream,
             data(&format!("{}.drc", case.name)),

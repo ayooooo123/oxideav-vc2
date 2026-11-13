@@ -7,11 +7,21 @@ on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `with_<field>` setters on `EncoderConfig`, `PictureInput`, `Vc2EncoderOptions`, `params::SourceOverrides` and `params::ParseParameters`; `new(..)` (every field, in declaration order) on `PictureInput`, `params::VideoParameters`, `params::SequenceHeader` and `picture::ParsedPicture`; `Default` on `PictureInput`, `SubDescriptorValues`, `CodingParameters`, `DecodedPicture`, `ParseInfo`, `FragmentHeader`.
 - `Decoder::output_video_dimensions` / `output_pixel_format`: the size and
   format of the frame `receive_frame` last returned; before the first,
   the next queued one. The format is `None` when §11.6.2 halves an odd
   subsampled size rounding down, so the chroma planes match no
   `PixelFormat`.
+
+### Changed
+
+- `#[non_exhaustive]` on the growable enums `Error`, `RateControl`, `conformance::Violation`, `mxf::SubDescriptorItem` and `sequence::DataUnit`, and on the records `EncoderConfig`, `PictureInput`, `Vc2EncoderOptions`, `DecodedPicture`, `mxf::SubDescriptorValues`, `params::VideoParameters`, `params::SourceOverrides`, `params::ParseParameters`, `params::CodingParameters`, `params::SequenceHeader`, `picture::ParsedPicture`, `sequence::ParseInfo`, `sequence::FragmentHeader`. `PictureKind` (LD / HQ), `params::ColorDiffFormat`, `mxf::Wrapping` and `mxf::FrameLayout` stay exhaustive: the specifications fix their value sets.
+- `#[doc(hidden)]` on the internal `bitio`, `quant`, `transform` and `wavelet` modules (bit I/O, quantisation matrices, transform data and lifting kernels; `PictureKind` stays documented through its root re-export).
+
+### Changed
+
+- edition 2024, MSRV 1.95
 
 ## [0.0.2](https://github.com/OxideAV/oxideav-vc2/compare/v0.0.1...v0.0.2) - 2026-08-30
 
